@@ -4,13 +4,58 @@ import ctypes.util
 import threading
 import os
 import sys
+import struct
+import platform
 from warnings import warn
 from functools import partial
 
 # vim: ts=4 sw=4 et
 
+def isX86file(filename):
+    IMAGE_FILE_MACHINE_I386 = 332
+    IMAGE_FILE_MACHINE_IA64 = 512
+    IMAGE_FILE_MACHINE_AMD64 = 34404
+
+    with open(filename, "rb") as f:
+        s = f.read(2)
+        if s != "MZ":
+            return False
+        else:
+            f.seek(60)
+            s = f.read(4)
+            header_offset = struct.unpack("<L", s)[0]
+            f.seek(header_offset + 4)
+            s = f.read(2)
+            machine = struct.unpack("<H", s)[0]
+            if machine == IMAGE_FILE_MACHINE_I386:
+                return True
+            elif machine == IMAGE_FILE_MACHINE_IA64:
+                return False
+            elif machine == IMAGE_FILE_MACHINE_AMD64:
+                return False
+            else:
+                return False
+
 if os.name == 'nt':
-    backend = CDLL(ctypes.util.find_library('mpv-1.dll'))
+    try:
+        backend = CDLL('mpv-1.dll')
+    except Exception as e:
+        # backend = CDLL(ctypes.util.find_library('mpv-1.dll'))
+        # search right architecture
+        fname = ""
+        for directory in os.environ['PATH'].split(os.pathsep):
+            fname = os.path.join(directory, 'mpv-1.dll')
+            if not os.path.isfile(fname):
+                continue
+            if not fname.lower().endswith(".dll"):
+                continue
+            if platform.architecture()[0] == "32bit":
+                if not isX86file(fname):
+                    continue                
+            break
+        print fname
+        backend = CDLL(fname)
+
     fs_enc = 'utf-8'
 else:
     backend = CDLL(ctypes.util.find_library('mpv'))
