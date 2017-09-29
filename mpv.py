@@ -16,6 +16,17 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+from __future__ import unicode_literals
+from __future__ import print_function
+from __future__ import division
+from __future__ import absolute_import
+from builtins import int
+# from builtins import super
+from builtins import range
+from builtins import str
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 from ctypes import *
 import ctypes.util
 import threading
@@ -26,6 +37,8 @@ from functools import partial, wraps
 import collections
 import re
 import traceback
+
+# from builtins import *
 
 if os.name == 'nt':
     backend = CDLL('mpv-1.dll')
@@ -446,7 +459,8 @@ def _event_loop(event_handle, playback_cond, event_callbacks, message_handlers, 
                 log_handler(ev['level'], ev['prefix'], ev['text'])
             if eid == MpvEventID.CLIENT_MESSAGE:
                 # {'event': {'args': ['key-binding', 'foo', 'u-', 'g']}, 'reply_userdata': 0, 'error': 0, 'event_id': 16}
-                target, *args = devent['event']['args']
+                _3to2list = list(devent['event']['args'])
+                target, args, = _3to2list[:1] + [_3to2list[1:]]
                 if target in message_handlers:
                     message_handlers[target](*args)
             if eid == MpvEventID.SHUTDOWN:
@@ -458,13 +472,13 @@ def _event_loop(event_handle, playback_cond, event_callbacks, message_handlers, 
 _py_to_mpv = lambda name: name.replace('_', '-')
 _mpv_to_py = lambda name: name.replace('-', '_')
 
-class _Proxy:
+class _Proxy(object):
     def __init__(self, mpv):
-        super().__setattr__('mpv', mpv)
+        super(_Proxy, self).__setattr__('mpv', mpv)
 
 class _PropertyProxy(_Proxy):
     def __dir__(self):
-        return super().__dir__() + [ name.replace('-', '_') for name in self.mpv.property_list ]
+        return super(_PropertyProxy, self).__dir__() + [ name.replace('-', '_') for name in self.mpv.property_list ]
 
 class _FileLocalProxy(_Proxy):
     def __getitem__(self, name):
@@ -485,8 +499,8 @@ class _OSDPropertyProxy(_PropertyProxy):
 
 class _DecoderPropertyProxy(_PropertyProxy):
     def __init__(self, mpv, decoder):
-        super().__init__(mpv)
-        super().__setattr__('_decoder', decoder)
+        super(_DecoderPropertyProxy, self).__init__(mpv)
+        super(_DecoderPropertyProxy, self).__setattr__('_decoder', decoder)
 
     def __getattr__(self, name):
         return self.mpv._get_property(_py_to_mpv(name), decoder=self._decoder)
@@ -509,7 +523,13 @@ class MPV(object):
 
     To make your program not barf hard the first time its used on a weird file system **always** access properties
     containing file names or file tags through ``MPV.raw``.  """
-    def __init__(self, *extra_mpv_flags, log_handler=None, start_event_thread=True, loglevel=None, **extra_mpv_opts):
+    def __init__(self, *extra_mpv_flags, **extra_mpv_opts):
+        if 'loglevel' in extra_mpv_opts: loglevel = extra_mpv_opts['loglevel']; del extra_mpv_opts['loglevel']
+        else: loglevel = None
+        if 'start_event_thread' in extra_mpv_opts: start_event_thread = extra_mpv_opts['start_event_thread']; del extra_mpv_opts['start_event_thread']
+        else: start_event_thread = True
+        if 'log_handler' in extra_mpv_opts: log_handler = extra_mpv_opts['log_handler']; del extra_mpv_opts['log_handler']
+        else: log_handler = None
         """Create an MPV instance.
 
         Extra arguments and extra keyword arguments will be passed to mpv as options.
@@ -604,8 +624,10 @@ class MPV(object):
                 for arg in args if arg is not None ] + [None]
         _mpv_command(self.handle, (c_char_p*len(args))(*args))
 
-    def node_command(self, name, *args, decoder=strict_decoder):
-        _1, _2, _3, pointer = _make_node_str_list([name, *args])
+    def node_command(self, name, *args, **_3to2kwargs):
+        if 'decoder' in _3to2kwargs: decoder = _3to2kwargs['decoder']; del _3to2kwargs['decoder']
+        else: decoder = strict_decoder
+        _1, _2, _3, pointer = _make_node_str_list([name] + arg)
         out = cast(create_string_buffer(sizeof(MpvNode)), POINTER(MpvNode))
         outptr = out #byref(out)
         ppointer = cast(pointer, POINTER(MpvNode))
@@ -1050,12 +1072,12 @@ class MPV(object):
                 if name != 'handle' and not name.startswith('_'):
                     self._set_property(_py_to_mpv(name), value)
                 else:
-                    super().__setattr__(name, value)
+                    super(MPV, self).__setattr__(name, value)
             except AttributeError:
-                super().__setattr__(name, value)
+                super(MPV, self).__setattr__(name, value)
 
     def __dir__(self):
-        return super().__dir__() + [ name.replace('-', '_') for name in self.property_list ]
+        return super(MPV, self).__dir__() + [ name.replace('-', '_') for name in self.property_list ]
 
     @property
     def properties(self):
