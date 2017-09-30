@@ -208,7 +208,9 @@ class MpvNode(Structure):
                 ('format', MpvFormat)]
 
     def node_value(self, decoder=identity_decoder):
-        return MpvNode.node_cast_value(byref(c_void_p(self.val)), self.format.value, decoder)
+        print(self.val)
+        # return MpvNode.node_cast_value(byref(c_void_p(self.val)), self.format.value, decoder)
+        return MpvNode.node_cast_value(byref(c_int64(self.val)), self.format.value, decoder)
 
     @staticmethod
     def node_cast_value(v, fmt=MpvFormat.NODE, decoder=identity_decoder):
